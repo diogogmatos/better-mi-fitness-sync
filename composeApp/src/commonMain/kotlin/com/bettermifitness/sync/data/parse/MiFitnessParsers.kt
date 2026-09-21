@@ -100,6 +100,9 @@ object MiFitnessParsers {
             try {
                 val obj = json.parseToJsonElement(entry.value).jsonObject
                 SpO2Sample(
+                    // APK Spo2Item serializes as `time`; ReportSpo2Item carries both
+                    // `date_time` (day anchor, ITimeData.getTimestamp) and `time`
+                    // (point timestamp, toSpo2Item target). Prefer `time`.
                     timestamp = obj["time"]?.jsonPrimitive?.longOrNull
                         ?: obj["date_time"]?.jsonPrimitive?.longOrNull
                         ?: entry.time,

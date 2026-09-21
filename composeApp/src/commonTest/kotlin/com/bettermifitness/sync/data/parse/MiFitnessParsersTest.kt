@@ -116,7 +116,7 @@ class MiFitnessParsersTest {
     }
 
     @Test
-    fun parseSpO2Samples_fallsBackToDateTimeForReportPayload() {
+    fun parseSpO2Samples_prefersTimeForReportPayload() {
         val entries = listOf(
             RawFitnessEntry(
                 key = "single_spo2",
@@ -126,8 +126,24 @@ class MiFitnessParsersTest {
         )
         val samples = MiFitnessParsers.parseSpO2Samples(entries)
         assertEquals(1, samples.size)
-        assertEquals(1_700_000_000L, samples[0].timestamp)
+        assertEquals(1_700_000_010L, samples[0].timestamp)
         assertEquals(97, samples[0].percentage)
+        assertEquals(28, samples[0].tzIn15Min)
+    }
+
+    @Test
+    fun parseSpO2Samples_fallsBackToDateTimeWhenTimeMissing() {
+        val entries = listOf(
+            RawFitnessEntry(
+                key = "single_spo2",
+                time = 1_700_000_100L,
+                value = """{"date_time":1700000000,"spo2":96,"timezone":28}""",
+            ),
+        )
+        val samples = MiFitnessParsers.parseSpO2Samples(entries)
+        assertEquals(1, samples.size)
+        assertEquals(1_700_000_000L, samples[0].timestamp)
+        assertEquals(96, samples[0].percentage)
         assertEquals(28, samples[0].tzIn15Min)
     }
 
