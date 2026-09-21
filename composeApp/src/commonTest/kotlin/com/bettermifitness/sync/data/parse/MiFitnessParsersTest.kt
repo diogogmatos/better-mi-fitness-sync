@@ -472,4 +472,50 @@ class MiFitnessParsersTest {
         assertEquals(1, samples.size)
         assertEquals(28, samples[0].tzIn15Min)
     }
+
+    @Test
+    fun parseHeartRateSamples_readsManualSingleHeartRatePayload() {
+        val entries = listOf(
+            RawFitnessEntry(
+                key = "single_heart_rate",
+                time = 1_700_000_100L,
+                value = """{"time":1700000000,"bpm":88,"timezone":28}""",
+            ),
+        )
+        val samples = MiFitnessParsers.parseHeartRateSamples(entries)
+        assertEquals(1, samples.size)
+        assertEquals(1_700_000_000L, samples[0].timestamp)
+        assertEquals(88, samples[0].bpm)
+        assertEquals(28, samples[0].tzIn15Min)
+    }
+
+    @Test
+    fun parseHeartRateSamples_readsHrAlias() {
+        val entries = listOf(
+            RawFitnessEntry(
+                key = "single_heart_rate",
+                time = 1_700_000_100L,
+                value = """{"time":1700000000,"hr":77}""",
+            ),
+        )
+        val samples = MiFitnessParsers.parseHeartRateSamples(entries)
+        assertEquals(1, samples.size)
+        assertEquals(77, samples[0].bpm)
+    }
+
+    @Test
+    fun parseBloodPressure_fromMedicalKeyPayload() {
+        val raw = listOf(
+            RawFitnessEntry(
+                key = "mc_blood_pressure",
+                time = 1_700_000_000L,
+                value = """{"time":1700000000,"systolic_pressure":118,"diastolic_pressure":76,"pulse":68}""",
+            ),
+        )
+        val samples = MiFitnessParsers.parseBloodPressureSamples(raw)
+        assertEquals(1, samples.size)
+        assertEquals(118, samples[0].systolicMmhg)
+        assertEquals(76, samples[0].diastolicMmhg)
+        assertEquals(68, samples[0].pulseBpm)
+    }
 }

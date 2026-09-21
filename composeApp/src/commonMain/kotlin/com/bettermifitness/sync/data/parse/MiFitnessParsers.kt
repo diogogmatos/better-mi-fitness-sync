@@ -67,7 +67,10 @@ object MiFitnessParsers {
                 val obj = json.parseToJsonElement(entry.value).jsonObject
                 HeartRateSample(
                     timestamp = obj["time"]?.jsonPrimitive?.long ?: entry.time,
-                    bpm = obj["bpm"]?.jsonPrimitive?.int ?: return@mapNotNull null,
+                    // APK HrItem serializes as `bpm`; accept `hr` alias for robustness.
+                    bpm = obj["bpm"]?.jsonPrimitive?.int
+                        ?: obj["hr"]?.jsonPrimitive?.int
+                        ?: return@mapNotNull null,
                     tzIn15Min = obj.miTimezoneOrNull(),
                 )
             } catch (_: Exception) {
