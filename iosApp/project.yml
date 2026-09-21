@@ -21,7 +21,7 @@ targets:
       - path: iosApp
         type: group
         excludes:
-          - "iosApp/credentials.plist"
+          - "iosApp/iosApp/credentials.plist"
       - path: iosApp/iosApp/credentials.plist
         buildPhase: resources
         optional: true
