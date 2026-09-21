@@ -87,6 +87,14 @@
 				<string>bettermifitness</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.googleusercontent.apps.984077551680-qbp78q4lo5llkdlp7mammqprk6avjukk</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.984077551680-qbp78q4lo5llkdlp7mammqprk6avjukk</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist>

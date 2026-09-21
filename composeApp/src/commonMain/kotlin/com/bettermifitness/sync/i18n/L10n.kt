@@ -2,6 +2,7 @@ package com.bettermifitness.sync.i18n
 
 import androidx.compose.runtime.Composable
 import com.bettermifitness.sync.MR
+import com.bettermifitness.sync.health.SyncDestination
 import dev.icerock.moko.resources.StringResource
 import dev.icerock.moko.resources.compose.stringResource
 
@@ -22,6 +23,12 @@ object L10n {
     fun textFmt(res: StringResource, vararg args: Any): String = L10nPlatform.format(res, args)
 
     fun metric(key: String): String = text(metricResource(key))
+
+    fun destinationLabel(destination: SyncDestination): String = when (destination) {
+        SyncDestination.HEALTH_CONNECT -> text(destinationHealthConnect)
+        SyncDestination.APPLE_HEALTH -> text(destinationAppleHealth)
+        SyncDestination.GOOGLE_HEALTH -> text(destinationGoogleHealth)
+    }
 
     fun metricResource(key: String): StringResource = when (key) {
         "heart_rate" -> MR.strings.metric_heart_rate
@@ -52,6 +59,14 @@ object L10n {
     val healthPermissionsIncomplete get() = MR.strings.health_permissions_incomplete
     val healthStatusCheckFailed get() = MR.strings.health_status_check_failed
     val healthWriteFailed get() = MR.strings.health_write_failed
+    val syncDestination get() = MR.strings.sync_destination
+    val destinationHealthConnect get() = MR.strings.destination_health_connect
+    val destinationAppleHealth get() = MR.strings.destination_apple_health
+    val destinationGoogleHealth get() = MR.strings.destination_google_health
+    val syncUnsupported get() = MR.strings.sync_unsupported
+    val googleHealthNotConfigured get() = MR.strings.google_health_not_configured
+    val googleHealthSignIn get() = MR.strings.google_health_sign_in
+    val googleHealthUnsupportedNote get() = MR.strings.google_health_unsupported_note
 
     // Login
     val loginTitle get() = MR.strings.login_title

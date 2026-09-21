@@ -13,6 +13,14 @@
     <string name="health_permissions_incomplete">Write permissions incomplete — grant access and try again.</string>
     <string name="health_status_check_failed">Could not check health service status.</string>
     <string name="health_write_failed">Health service is not available.</string>
+    <string name="sync_destination">Sync destination</string>
+    <string name="destination_health_connect">Health Connect</string>
+    <string name="destination_apple_health">Apple Health</string>
+    <string name="destination_google_health">Google Health</string>
+    <string name="sync_unsupported">Unsupported</string>
+    <string name="google_health_not_configured">Google Health is not configured.</string>
+    <string name="google_health_sign_in">Sign in with Google to sync.</string>
+    <string name="google_health_unsupported_note">Google Health can currently receive workouts, sleep, and weight &amp; body fat. Other metrics are read-only.</string>
 
     <!-- Login -->
     <string name="login_title">Better Mi Fitness Sync</string>

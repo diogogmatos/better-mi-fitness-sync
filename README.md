@@ -27,15 +27,19 @@ Needs [Health Connect](https://play.google.com/store/apps/details?id=com.google.
 2. Re-sign and install on your iPhone (e.g. [Sideloadly](https://sideloadly.io/) or Xcode).
 3. Allow **Health** access, sign in with your Mi account, then sync.
 
-**Note:** The IPA is unsigned. You need a **paid Apple Developer** account with **HealthKit** enabled. A free Apple ID is not enough.
+**Note:** The IPA is unsigned. To sync to **Apple Health** you need a **paid Apple Developer** account with **HealthKit** enabled (a free Apple ID is not enough). Syncing to **Google Health** does not require HealthKit and works without a paid developer account.
 
 ## What it does
 
 - Signs in to your Mi Fitness account
 - Syncs steps, heart rate, sleep, SpO₂, weight, workouts (including GPS routes when available), and other metrics
-- Writes data to Health Connect or Apple Health
+- Writes data to Health Connect (Android) or Apple Health / Google Health (iOS)
 - Optional auto-sync on a schedule
 - Keeps login and health data on your device only
+
+### Google Health (iOS)
+
+On iOS you can choose to sync to **Google Health** instead of Apple Health. Google Health currently accepts only **workouts, sleep, and weight & body fat**; the other metrics are read-only there and show as "Unsupported" during a sync. Sign in with your Google account when prompted — the app stores only the OAuth tokens on your device.
 
 ## Privacy
 

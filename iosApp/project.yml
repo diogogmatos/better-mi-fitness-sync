@@ -20,6 +20,11 @@ targets:
     sources:
       - path: iosApp
         type: group
+        excludes:
+          - "iosApp/credentials.plist"
+      - path: iosApp/iosApp/credentials.plist
+        buildPhase: resources
+        optional: true
     settings:
       base:
         INFOPLIST_FILE: iosApp/Info.plist

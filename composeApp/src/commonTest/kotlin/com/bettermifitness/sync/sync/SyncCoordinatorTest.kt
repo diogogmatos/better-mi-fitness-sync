@@ -7,8 +7,21 @@ import com.bettermifitness.sync.data.preferences.SyncSessionPort
 import com.bettermifitness.sync.data.repository.HealthSyncRunner
 import com.bettermifitness.sync.data.repository.SyncProgress
 import com.bettermifitness.sync.data.repository.SyncRunResult
-import com.bettermifitness.sync.health.HealthAvailability
-import com.bettermifitness.sync.health.HealthPermissionRequester
+import com.bettermifitness.sync.data.api.ActiveCaloriesSample
+import com.bettermifitness.sync.data.api.BloodPressureSample
+import com.bettermifitness.sync.data.api.DistanceSample
+import com.bettermifitness.sync.data.api.HeartRateSample
+import com.bettermifitness.sync.data.api.HrvSample
+import com.bettermifitness.sync.data.api.SleepSession
+import com.bettermifitness.sync.data.api.SpO2Sample
+import com.bettermifitness.sync.data.api.StepsRecord
+import com.bettermifitness.sync.data.api.TemperatureSample
+import com.bettermifitness.sync.data.api.Vo2MaxSample
+import com.bettermifitness.sync.data.api.WeightMeasurement
+import com.bettermifitness.sync.data.api.WorkoutSession
+import com.bettermifitness.sync.health.HealthStore
+import com.bettermifitness.sync.health.HealthStoreProvider
+import com.bettermifitness.sync.health.SyncDestination
 import com.mifitness.miclient.auth.MiCredentials
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -184,8 +197,7 @@ class SyncCoordinatorTest {
         session = FakeSession(sessionOk),
         credentials = FakeCredentials(token),
         syncPreferences = prefs,
-        healthAvailability = health,
-        healthPermissions = health,
+        healthProvider = FakeHealthProvider(health),
         repository = runner,
     )
 
@@ -207,9 +219,11 @@ class SyncCoordinatorTest {
         override val autoSync = MutableStateFlow(autoSync)
         override val enabledMetrics = MutableStateFlow(enabled)
         override val syncRangeDays = MutableStateFlow(rangeDays)
+        override val syncDestination = MutableStateFlow("")
         var lastStatus: String? = null
         var lastMessage: String? = null
 
+        override suspend fun setSyncDestination(key: String) = Unit
         override suspend fun updateLastSync(timestamp: String) = Unit
         override suspend fun updateLastBackgroundSync(timestamp: String) = Unit
         override suspend fun updateLastSyncOutcome(status: String, message: String?) {
@@ -225,7 +239,7 @@ class SyncCoordinatorTest {
     private class FakeHealth(
         var available: Boolean = true,
         var permissionError: String? = null,
-    ) : HealthAvailability, HealthPermissionRequester {
+    ) : HealthStore {
         override suspend fun isAvailable(): Boolean = available
         override suspend fun availabilityHint(): String? = if (available) null else "missing"
         override fun healthServiceName(): String = "Test Health"
@@ -234,6 +248,30 @@ class SyncCoordinatorTest {
         override suspend fun requestPermissions() {
             permissionError?.let { throw Exception(it) }
         }
+        override suspend fun readLatestWeight(): WeightMeasurement? = null
+        override suspend fun writeHeartRate(samples: List<HeartRateSample>) = Unit
+        override suspend fun writeRestingHeartRate(samples: List<HeartRateSample>) = Unit
+        override suspend fun writeSleep(sessions: List<SleepSession>) = Unit
+        override suspend fun writeSteps(records: List<StepsRecord>) = Unit
+        override suspend fun writeDistance(samples: List<DistanceSample>) = Unit
+        override suspend fun writeActiveCalories(samples: List<ActiveCaloriesSample>) = Unit
+        override suspend fun writeSpO2(samples: List<SpO2Sample>) = Unit
+        override suspend fun writeWeight(measurements: List<WeightMeasurement>) = Unit
+        override suspend fun writeWorkouts(sessions: List<WorkoutSession>) = Unit
+        override suspend fun writeBloodPressure(samples: List<BloodPressureSample>) = Unit
+        override suspend fun writeTemperature(samples: List<TemperatureSample>) = Unit
+        override suspend fun writeVo2Max(samples: List<Vo2MaxSample>) = Unit
+        override suspend fun writeHrv(samples: List<HrvSample>) = Unit
+    }
+
+    private class FakeHealthProvider(
+        private val store: HealthStore,
+    ) : HealthStoreProvider {
+        override val supportedDestinations: List<SyncDestination> = listOf(SyncDestination.APPLE_HEALTH)
+        private val destination = MutableStateFlow(SyncDestination.APPLE_HEALTH)
+        private val storeFlow = MutableStateFlow(store)
+        override val activeDestination: StateFlow<SyncDestination> = destination
+        override val activeStore: StateFlow<HealthStore> = storeFlow
     }
 
     private class FakeSyncRunner(

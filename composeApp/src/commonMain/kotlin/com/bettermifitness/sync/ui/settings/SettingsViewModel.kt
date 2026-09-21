@@ -7,9 +7,10 @@ import com.bettermifitness.sync.AutoSyncPlatform
 import com.bettermifitness.sync.data.MiSessionManager
 import com.bettermifitness.sync.data.preferences.SyncPreferences
 import com.bettermifitness.sync.data.preferences.TokenStore
-import com.bettermifitness.sync.health.HealthAvailability
-import com.bettermifitness.sync.health.HealthPermissionRequester
 import com.bettermifitness.sync.health.HealthReadiness
+import com.bettermifitness.sync.health.HealthStore
+import com.bettermifitness.sync.health.HealthStoreProvider
+import com.bettermifitness.sync.health.SyncDestination
 import com.bettermifitness.sync.sync.SyncOutcomeLabels
 import com.bettermifitness.sync.util.RelativeTime
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -49,16 +50,21 @@ data class SettingsUiState(
     val healthStatusTitle: String = "",
     val healthStatusDetail: String = "",
     val healthNeedsAction: Boolean = false,
+    /** Currently-selected sync destination (null until resolved). */
+    val syncDestination: SyncDestination? = null,
+    /** Destinations the user can pick from on this platform. */
+    val supportedDestinations: List<SyncDestination> = emptyList(),
     val loggedOut: Boolean = false,
 )
 
 class SettingsViewModel(
     private val syncPreferences: SyncPreferences,
-    private val healthAvailability: HealthAvailability,
-    private val healthPermissions: HealthPermissionRequester,
+    private val healthProvider: HealthStoreProvider,
     private val tokenStore: TokenStore,
     private val session: MiSessionManager,
 ) : ViewModel() {
+
+    private val healthStore: HealthStore get() = healthProvider.activeStore.value
 
     private val showShortcutsHelp = AutoSyncPlatform.supportsShortcutsHelp()
 
@@ -73,7 +79,7 @@ class SettingsViewModel(
         HealthReadiness(
             available = true,
             permissionsGranted = true,
-            serviceName = healthAvailability.healthServiceName(),
+            serviceName = healthStore.healthServiceName(),
             hint = null,
         ),
     )
@@ -97,12 +103,14 @@ class SettingsViewModel(
     ) { e, r, a -> Triple(e, r, a) }
 
     val uiState: StateFlow<SettingsUiState> = combine(
-        configBundle,
-        lastSyncBundle,
-        lastBgBundle,
+        combine(configBundle, lastSyncBundle, lastBgBundle) { c, ls, bg -> Triple(c, ls, bg) },
         _local,
         _health,
-    ) { config, lastSync, lastBg, local, health ->
+        healthProvider.activeDestination,
+    ) { bundle, local, health, destination ->
+        val config = bundle.first
+        val lastSync = bundle.second
+        val lastBg = bundle.third
         SettingsUiState(
             enabledMetrics = config.first,
             prefsReady = true,
@@ -127,6 +135,8 @@ class SettingsViewModel(
             healthStatusTitle = health.statusTitle,
             healthStatusDetail = health.statusDetail,
             healthNeedsAction = !health.isReady,
+            syncDestination = destination,
+            supportedDestinations = healthProvider.supportedDestinations,
             loggedOut = local.loggedOut,
         )
     }.stateIn(
@@ -138,23 +148,28 @@ class SettingsViewModel(
             bgRefreshLabel = _local.value.bgRefreshLabel,
             canTestBgRefresh = _local.value.canTestBgRefresh,
             showShortcutsHelp = showShortcutsHelp,
-            healthServiceName = healthAvailability.healthServiceName(),
+            healthServiceName = healthStore.healthServiceName(),
+            syncDestination = healthProvider.activeDestination.value,
+            supportedDestinations = healthProvider.supportedDestinations,
         ),
     )
 
     init {
         refreshHealth()
+        viewModelScope.launch {
+            healthProvider.activeDestination.collect { refreshHealth() }
+        }
     }
 
     fun refreshHealth() {
         viewModelScope.launch {
             try {
-                _health.value = healthAvailability.readiness()
+                _health.value = healthStore.readiness()
             } catch (_: Exception) {
                 _health.value = HealthReadiness(
                     available = false,
                     permissionsGranted = false,
-                    serviceName = healthAvailability.healthServiceName(),
+                    serviceName = healthStore.healthServiceName(),
                     hint = L10n.text(L10n.healthStatusCheckFailed),
                 )
             }
@@ -164,12 +179,12 @@ class SettingsViewModel(
     fun openHealthService() {
         viewModelScope.launch {
             try {
-                healthPermissions.requestPermissions()
+                healthStore.requestPermissions()
             } catch (_: Exception) {
                 // Denied / failed — open Settings or Health Connect below.
             }
-            if (!healthAvailability.hasWritePermissions()) {
-                healthAvailability.openHealthService()
+            if (!healthStore.hasWritePermissions()) {
+                healthStore.openHealthService()
             }
             refreshHealth()
         }
@@ -178,6 +193,12 @@ class SettingsViewModel(
     fun setMetricEnabled(key: String, enabled: Boolean) {
         viewModelScope.launch {
             syncPreferences.setMetricEnabled(key, enabled)
+        }
+    }
+
+    fun setSyncDestination(destination: SyncDestination) {
+        viewModelScope.launch {
+            syncPreferences.setSyncDestination(destination.key)
         }
     }
 

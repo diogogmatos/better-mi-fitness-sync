@@ -42,6 +42,14 @@ class SyncPreferences(
         it[SYNC_RANGE_DAYS_KEY] ?: 7
     }
 
+    override val syncDestination: Flow<String> = dataStore.data.map {
+        it[SYNC_DESTINATION_KEY] ?: ""
+    }
+
+    override suspend fun setSyncDestination(key: String) {
+        dataStore.edit { it[SYNC_DESTINATION_KEY] = key }
+    }
+
     override suspend fun updateLastSync(timestamp: String) {
         dataStore.edit { it[LAST_SYNC_KEY] = timestamp }
     }
@@ -116,5 +124,6 @@ class SyncPreferences(
         private val AUTO_SYNC_KEY = stringPreferencesKey("auto_sync")
         private val ENABLED_METRICS_KEY = stringSetPreferencesKey("enabled_metrics")
         private val SYNC_RANGE_DAYS_KEY = intPreferencesKey("sync_range_days")
+        private val SYNC_DESTINATION_KEY = stringPreferencesKey("sync_destination")
     }
 }

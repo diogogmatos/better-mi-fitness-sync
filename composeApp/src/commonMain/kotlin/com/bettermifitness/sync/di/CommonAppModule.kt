@@ -10,11 +10,7 @@ import com.bettermifitness.sync.data.preferences.SyncSessionPort
 import com.bettermifitness.sync.data.preferences.TokenStore
 import com.bettermifitness.sync.data.repository.HealthRepository
 import com.bettermifitness.sync.data.repository.HealthSyncRunner
-import com.bettermifitness.sync.health.HealthAvailability
-import com.bettermifitness.sync.health.HealthPermissionRequester
-import com.bettermifitness.sync.health.HealthSampleWriter
-import com.bettermifitness.sync.health.HealthStore
-import com.bettermifitness.sync.health.HealthWriter
+import com.bettermifitness.sync.health.HealthStoreProvider
 import com.bettermifitness.sync.sync.SyncCoordinator
 import com.bettermifitness.sync.ui.home.HomeViewModel
 import com.bettermifitness.sync.ui.login.LoginViewModel
@@ -40,22 +36,16 @@ fun commonAppModule(): Module = module {
     single<SyncSessionPort> { get<MiSessionManager>() }
     single { MiRegionDiscovery() }
 
-    // Platform module registers HealthWriter; bind ISP ports to the same instance.
-    single<HealthStore> { get<HealthWriter>() }
-    single<HealthSampleWriter> { get<HealthWriter>() }
-    single<com.bettermifitness.sync.health.HealthWeightReader> { get<HealthWriter>() }
-    single<HealthAvailability> { get<HealthWriter>() }
-    single<HealthPermissionRequester> { get<HealthWriter>() }
+    // Platform module registers the HealthStoreProvider (HealthWriter + GoogleHealth).
 
-    single { HealthRepository(get(), get<HealthStore>()) }
+    single { HealthRepository(get(), get<HealthStoreProvider>()) }
     single<HealthSyncRunner> { get<HealthRepository>() }
     single {
         SyncCoordinator(
             session = get<SyncSessionPort>(),
             credentials = get<CredentialsPort>(),
             syncPreferences = get<SyncPreferencesPort>(),
-            healthAvailability = get<HealthAvailability>(),
-            healthPermissions = get<HealthPermissionRequester>(),
+            healthProvider = get<HealthStoreProvider>(),
             repository = get<HealthSyncRunner>(),
         )
     }
@@ -72,16 +62,14 @@ fun commonAppModule(): Module = module {
         HomeViewModel(
             session = get(),
             tokenStore = get(),
-            healthAvailability = get(),
-            healthPermissions = get(),
+            healthProvider = get(),
             syncCoordinator = get(),
         )
     }
     factory {
         SyncViewModel(
             repository = get(),
-            healthAvailability = get(),
-            healthPermissions = get(),
+            healthProvider = get(),
             syncPreferences = get(),
             syncCoordinator = get(),
         )
@@ -89,8 +77,7 @@ fun commonAppModule(): Module = module {
     factory {
         SettingsViewModel(
             syncPreferences = get(),
-            healthAvailability = get(),
-            healthPermissions = get(),
+            healthProvider = get(),
             tokenStore = get(),
             session = get(),
         )

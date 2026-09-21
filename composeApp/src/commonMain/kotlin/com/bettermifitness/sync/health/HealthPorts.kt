@@ -107,3 +107,10 @@ interface HealthWeightReader {
 
 /** Full platform health façade (writes + availability + permissions + weight reads). */
 interface HealthStore : HealthSampleWriter, HealthWeightReader, HealthAvailability, HealthPermissionRequester
+
+/**
+ * Thrown when a destination rejects a metric write because the data type is
+ * read-only / not writable through its API. Surfaced as an "Unsupported" state
+ * rather than a generic failure.
+ */
+class MetricUnsupportedException(message: String) : Exception(message)

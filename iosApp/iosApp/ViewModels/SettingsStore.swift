@@ -30,6 +30,9 @@ final class SettingsStore: ObservableObject {
         var healthStatusTitle: String = ""
         var healthStatusDetail: String = ""
         var healthNeedsAction: Bool = false
+        var syncDestinationKey: String = ""
+        var destinationKeys: [String] = []
+        var destinationLabels: [String] = []
     }
 
     let metricKeys: [String]
@@ -80,6 +83,9 @@ final class SettingsStore: ObservableObject {
         snap.healthStatusTitle = s.healthStatusTitle
         snap.healthStatusDetail = s.healthStatusDetail
         snap.healthNeedsAction = s.healthNeedsAction
+        snap.syncDestinationKey = IosAppBridge.shared.currentDestinationKey(state: s)
+        snap.destinationKeys = IosAppBridge.shared.supportedDestinationKeys(state: s) as? [String] ?? []
+        snap.destinationLabels = IosAppBridge.shared.supportedDestinationLabels(state: s) as? [String] ?? []
         state = snap
     }
 
@@ -93,6 +99,10 @@ final class SettingsStore: ObservableObject {
 
     func setAutoSync(_ on: Bool) {
         vm.setAutoSync(enabled: on)
+    }
+
+    func setSyncDestination(_ key: String) {
+        IosAppBridge.shared.setSyncDestination(vm: vm, key: key)
     }
 
     func refreshHealth() { vm.refreshHealth() }

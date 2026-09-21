@@ -10,6 +10,8 @@ struct iOSApp: App {
         MainViewControllerKt.doInitKoin()
         // Register BG handler + Kotlin↔Swift schedule bridge.
         BackgroundSyncManager.register()
+        // Google Health OAuth (client id + ASWebAuthenticationSession presenter).
+        GoogleHealthAuth.register()
         // Only keep BGAppRefresh queued when Auto-sync is enabled.
         AutoSyncSchedule.shared.restore()
     }

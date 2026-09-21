@@ -3,6 +3,7 @@ package com.bettermifitness.sync
 import com.bettermifitness.sync.data.MiSessionManager
 import com.bettermifitness.sync.data.preferences.TokenStore
 import com.bettermifitness.sync.data.repository.SyncState
+import com.bettermifitness.sync.health.SyncDestination
 import com.bettermifitness.sync.i18n.L10n
 import com.bettermifitness.sync.platform.FlowWatcher
 import com.bettermifitness.sync.platform.watchStateFlow
@@ -112,6 +113,7 @@ object IosAppBridge : KoinComponent {
             is SyncState.InProgress -> "progress"
             is SyncState.Success -> "success"
             is SyncState.Error -> "error"
+            is SyncState.Unsupported -> "unsupported"
         }
 
     fun metricStatusText(vm: SyncViewModel, key: String): String =
@@ -120,7 +122,21 @@ object IosAppBridge : KoinComponent {
             is SyncState.InProgress -> L10n.text(L10n.syncStatusSyncing)
             is SyncState.Success -> if (s.count > 0) L10n.textFmt(L10n.syncRecords, s.count) else L10n.text(L10n.syncStatusDone)
             is SyncState.Error -> s.message
+            is SyncState.Unsupported -> L10n.text(L10n.syncUnsupported)
         }
+
+    fun setSyncDestination(vm: SettingsViewModel, key: String) {
+        SyncDestination.fromKey(key)?.let { vm.setSyncDestination(it) }
+    }
+
+    fun supportedDestinationKeys(state: SettingsUiState): List<String> =
+        state.supportedDestinations.map { it.key }
+
+    fun supportedDestinationLabels(state: SettingsUiState): List<String> =
+        state.supportedDestinations.map { L10n.destinationLabel(it) }
+
+    fun currentDestinationKey(state: SettingsUiState): String =
+        state.syncDestination?.key.orEmpty()
 
     fun profileName(state: HomeUiState): String =
         state.profile?.result?.name?.takeIf { it.isNotBlank() } ?: L10n.text(L10n.homeAccount)

@@ -1,15 +1,12 @@
 package com.bettermifitness.sync.sync
 
 import com.bettermifitness.sync.data.preferences.CredentialsPort
-import com.bettermifitness.sync.data.preferences.CredentialsStore
 import com.bettermifitness.sync.data.preferences.SyncPreferences
 import com.bettermifitness.sync.data.preferences.SyncPreferencesPort
 import com.bettermifitness.sync.data.preferences.SyncSessionPort
 import com.bettermifitness.sync.data.repository.HealthSyncRunner
 import com.bettermifitness.sync.data.repository.SyncRunResult
-import com.bettermifitness.sync.health.HealthAvailability
-import com.bettermifitness.sync.health.HealthPermissionRequester
-import com.bettermifitness.sync.health.HealthStore
+import com.bettermifitness.sync.health.HealthStoreProvider
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,25 +26,9 @@ class SyncCoordinator(
     private val session: SyncSessionPort,
     private val credentials: CredentialsPort,
     private val syncPreferences: SyncPreferencesPort,
-    private val healthAvailability: HealthAvailability,
-    private val healthPermissions: HealthPermissionRequester,
+    private val healthProvider: HealthStoreProvider,
     private val repository: HealthSyncRunner,
 ) {
-    constructor(
-        session: SyncSessionPort,
-        credentials: CredentialsStore,
-        syncPreferences: SyncPreferences,
-        healthStore: HealthStore,
-        repository: HealthSyncRunner,
-    ) : this(
-        session = session,
-        credentials = credentials,
-        syncPreferences = syncPreferences,
-        healthAvailability = healthStore,
-        healthPermissions = healthStore,
-        repository = repository,
-    )
-
     private val runMutex = Mutex()
     private val _isRunning = MutableStateFlow(false)
     /** True while a [run] holds the single-flight lock (including permission prompts). */
@@ -119,13 +100,14 @@ class SyncCoordinator(
             return notLoggedInOrSkipped(userInitiated, requireAutoSync)
         }
 
-        if (!healthAvailability.isAvailable()) {
+        val healthStore = healthProvider.activeStore.value
+        if (!healthStore.isAvailable()) {
             return SyncOutcome.HealthUnavailable
         }
 
         if (requestHealthPermissions) {
             try {
-                healthPermissions.requestPermissions()
+                healthStore.requestPermissions()
             } catch (e: Exception) {
                 return SyncOutcome.Failed(
                     message = e.message ?: "Health permissions denied",

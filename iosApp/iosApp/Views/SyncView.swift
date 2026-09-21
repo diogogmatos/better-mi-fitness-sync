@@ -133,6 +133,8 @@ struct SyncView: View {
             return L10n.syncStatusDone
         case "error":
             return L10n.syncStatusFailed
+        case "unsupported":
+            return L10n.syncUnsupported
         default:
             return L10n.syncStatusWaiting
         }
@@ -147,6 +149,8 @@ struct SyncView: View {
             Image(systemName: "checkmark.circle.fill").foregroundStyle(Brand.success)
         case "error":
             Image(systemName: "xmark.circle.fill").foregroundStyle(Brand.danger)
+        case "unsupported":
+            Image(systemName: "minus.circle").foregroundStyle(Brand.secondaryLabel.opacity(0.6))
         default:
             Image(systemName: "circle").foregroundStyle(Brand.secondaryLabel.opacity(0.35))
         }
@@ -157,6 +161,7 @@ struct SyncView: View {
         case "success": return Brand.success
         case "error": return Brand.danger
         case "progress": return Brand.primary
+        case "unsupported": return Brand.secondaryLabel
         default: return Brand.secondaryLabel
         }
     }

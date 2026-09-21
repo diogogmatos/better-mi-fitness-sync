@@ -10,7 +10,9 @@ import com.bettermifitness.sync.data.parse.toRaw
 import com.bettermifitness.sync.data.preferences.SyncPreferences
 import com.bettermifitness.sync.health.HealthDataNormalizer
 import com.bettermifitness.sync.health.HealthStore
+import com.bettermifitness.sync.health.HealthStoreProvider
 import com.bettermifitness.sync.health.HealthTimePolicy
+import com.bettermifitness.sync.health.MetricUnsupportedException
 import com.mifitness.miclient.api.MiApiException
 import kotlin.time.Clock
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,6 +40,8 @@ sealed class SyncState {
     data object InProgress : SyncState()
     data class Success(val count: Int) : SyncState()
     data class Error(val message: String) : SyncState()
+    /** Destination cannot write this metric (e.g. read-only Google Health data type). */
+    data object Unsupported : SyncState()
 }
 
 /**
@@ -51,11 +55,14 @@ sealed class SyncState {
  */
 class HealthRepository(
     private val session: MiSessionManager,
-    private val healthWriter: HealthStore,
+    private val healthProvider: HealthStoreProvider,
 ) : HealthSyncRunner {
     private val _syncProgress = MutableStateFlow(SyncProgress())
     override val syncProgress: StateFlow<SyncProgress> = _syncProgress.asStateFlow()
     private val api get() = session.api
+
+    /** Resolved per call so destination changes take effect immediately. */
+    private val healthWriter: HealthStore get() = healthProvider.activeStore.value
 
     private var authRefreshTried = false
     private var sawAuthFailure = false
@@ -446,6 +453,8 @@ class HealthRepository(
         setState(metric, SyncState.InProgress)
         try {
             setState(metric, SyncState.Success(executeWithAuthRetry(block)))
+        } catch (e: MetricUnsupportedException) {
+            setState(metric, SyncState.Unsupported)
         } catch (e: Exception) {
             recordFailure(e)
             setState(metric, SyncState.Error(friendlyMessage(e)))

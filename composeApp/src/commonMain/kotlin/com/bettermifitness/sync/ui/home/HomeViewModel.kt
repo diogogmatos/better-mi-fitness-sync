@@ -7,9 +7,9 @@ import com.bettermifitness.sync.data.MiSessionManager
 import com.bettermifitness.sync.data.api.MeResponse
 import com.bettermifitness.sync.data.preferences.SyncPreferences
 import com.bettermifitness.sync.data.preferences.TokenStore
-import com.bettermifitness.sync.health.HealthAvailability
-import com.bettermifitness.sync.health.HealthPermissionRequester
 import com.bettermifitness.sync.health.HealthReadiness
+import com.bettermifitness.sync.health.HealthStore
+import com.bettermifitness.sync.health.HealthStoreProvider
 import com.bettermifitness.sync.sync.SyncCoordinator
 import com.bettermifitness.sync.sync.SyncOutcomeLabels
 import com.bettermifitness.sync.ui.SyncMetric
@@ -51,11 +51,12 @@ data class HomeUiState(
 class HomeViewModel(
     private val session: MiSessionManager,
     private val tokenStore: TokenStore,
-    private val healthAvailability: HealthAvailability,
-    private val healthPermissions: HealthPermissionRequester,
+    private val healthProvider: HealthStoreProvider,
     private val syncCoordinator: SyncCoordinator,
 ) : ViewModel() {
     private val syncPreferences: SyncPreferences get() = tokenStore.sync
+
+    private val healthStore: HealthStore get() = healthProvider.activeStore.value
 
     private val _profile = MutableStateFlow<MeResponse?>(null)
     private val _profileError = MutableStateFlow<String?>(null)
@@ -64,7 +65,7 @@ class HomeViewModel(
         HealthReadiness(
             available = true,
             permissionsGranted = true,
-            serviceName = healthAvailability.healthServiceName(),
+            serviceName = healthStore.healthServiceName(),
             hint = null,
         ),
     )
@@ -147,7 +148,7 @@ class HomeViewModel(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = HomeUiState(
-            healthServiceName = healthAvailability.healthServiceName(),
+            healthServiceName = healthStore.healthServiceName(),
             isSyncing = syncCoordinator.isRunning.value,
         ),
     )
@@ -155,6 +156,9 @@ class HomeViewModel(
     init {
         loadProfile()
         refreshHealthReadiness()
+        viewModelScope.launch {
+            healthProvider.activeDestination.collect { refreshHealthReadiness() }
+        }
     }
 
     fun loadProfile() {
@@ -188,12 +192,12 @@ class HomeViewModel(
     fun refreshHealthReadiness() {
         viewModelScope.launch {
             try {
-                _health.value = healthAvailability.readiness()
+                _health.value = healthStore.readiness()
             } catch (_: Exception) {
                 _health.value = HealthReadiness(
                     available = false,
                     permissionsGranted = false,
-                    serviceName = healthAvailability.healthServiceName(),
+                    serviceName = healthStore.healthServiceName(),
                     hint = L10n.text(L10n.healthStatusCheckFailed),
                 )
             }
@@ -207,12 +211,12 @@ class HomeViewModel(
     fun openHealthService() {
         viewModelScope.launch {
             try {
-                healthPermissions.requestPermissions()
+                healthStore.requestPermissions()
             } catch (_: Exception) {
                 // User denied or request failed — fall through to Settings / HC.
             }
-            if (!healthAvailability.hasWritePermissions()) {
-                healthAvailability.openHealthService()
+            if (!healthStore.hasWritePermissions()) {
+                healthStore.openHealthService()
             }
             refreshHealthReadiness()
         }

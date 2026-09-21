@@ -23,6 +23,12 @@ enum L10n {
     static var healthReady: String { s(strings.health_ready) }
     static var healthChecking: String { s(strings.health_checking) }
     static func openHealth(_ service: String) -> String { f(strings.open_health, [service]) }
+    static var syncDestination: String { s(strings.sync_destination) }
+    static var destinationHealthConnect: String { s(strings.destination_health_connect) }
+    static var destinationAppleHealth: String { s(strings.destination_apple_health) }
+    static var destinationGoogleHealth: String { s(strings.destination_google_health) }
+    static var syncUnsupported: String { s(strings.sync_unsupported) }
+    static var googleHealthUnsupportedNote: String { s(strings.google_health_unsupported_note) }
 
     // Login
     static var loginTitle: String { s(strings.login_title) }

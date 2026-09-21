@@ -185,6 +185,7 @@ private fun MetricRow(metric: SyncMetric, syncState: SyncState) {
         is SyncState.InProgress -> L10n.string(L10n.syncStatusSyncing) to MaterialTheme.colorScheme.primary
         is SyncState.Success -> L10n.string(L10n.syncStatusDone) to MaterialTheme.colorScheme.primary
         is SyncState.Error -> L10n.string(L10n.syncStatusFailed) to MaterialTheme.colorScheme.error
+        is SyncState.Unsupported -> L10n.string(L10n.syncUnsupported) to MaterialTheme.colorScheme.onSurfaceVariant
         is SyncState.Idle -> L10n.string(L10n.syncStatusWaiting) to MaterialTheme.colorScheme.onSurfaceVariant
     }
 
@@ -233,6 +234,7 @@ private fun MetricRow(metric: SyncMetric, syncState: SyncState) {
                         tint = MaterialTheme.colorScheme.error,
                     )
                 is SyncState.Idle -> { }
+                is SyncState.Unsupported -> { }
             }
             Text(
                 label,

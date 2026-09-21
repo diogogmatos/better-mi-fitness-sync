@@ -15,6 +15,9 @@ interface SyncPreferencesPort {
     val autoSync: Flow<Boolean>
     val enabledMetrics: Flow<Set<String>>
     val syncRangeDays: Flow<Int>
+    /** Selected sync destination key (empty string = platform default). */
+    val syncDestination: Flow<String>
+    suspend fun setSyncDestination(key: String)
     suspend fun updateLastSync(timestamp: String)
     suspend fun updateLastBackgroundSync(timestamp: String)
     suspend fun updateLastSyncOutcome(status: String, message: String?)

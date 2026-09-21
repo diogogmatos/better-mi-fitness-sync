@@ -37,6 +37,24 @@ struct SettingsView: View {
                 .pickerStyle(.segmented)
             }
 
+            if store.state.destinationKeys.count > 1 {
+                Section(L10n.syncDestination) {
+                    Picker(L10n.syncDestination, selection: Binding(
+                        get: { store.state.syncDestinationKey },
+                        set: { store.setSyncDestination($0) }
+                    )) {
+                        ForEach(Array(zip(store.state.destinationKeys, store.state.destinationLabels)), id: \.0) { key, label in
+                            Text(label).tag(key)
+                        }
+                    }
+                    if store.state.syncDestinationKey == "google_health" {
+                        Text(L10n.googleHealthUnsupportedNote)
+                            .font(.caption)
+                            .foregroundStyle(Brand.secondaryLabel)
+                    }
+                }
+            }
+
             Section(L10n.settingsSectionAutoSync) {
                 Toggle(L10n.settingsBackgroundAutoSync, isOn: Binding(
                     get: { store.state.autoSync },

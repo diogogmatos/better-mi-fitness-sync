@@ -6,8 +6,8 @@ import com.bettermifitness.sync.data.preferences.SyncPreferences
 import com.bettermifitness.sync.data.repository.HealthRepository
 import com.bettermifitness.sync.data.repository.SyncProgress
 import com.bettermifitness.sync.data.repository.SyncState
-import com.bettermifitness.sync.health.HealthAvailability
-import com.bettermifitness.sync.health.HealthPermissionRequester
+import com.bettermifitness.sync.health.HealthStore
+import com.bettermifitness.sync.health.HealthStoreProvider
 import com.bettermifitness.sync.i18n.L10n
 import com.bettermifitness.sync.sync.SyncCoordinator
 import com.bettermifitness.sync.sync.SyncOutcome
@@ -44,14 +44,15 @@ data class SyncUiState(
  */
 class SyncViewModel(
     private val repository: HealthRepository,
-    private val healthAvailability: HealthAvailability,
-    private val healthPermissions: HealthPermissionRequester,
+    private val healthProvider: HealthStoreProvider,
     private val syncPreferences: SyncPreferences,
     private val syncCoordinator: SyncCoordinator,
 ) : ViewModel() {
 
+    private val healthStore: HealthStore get() = healthProvider.activeStore.value
+
     private val _local = MutableStateFlow(
-        LocalSyncState(healthServiceName = healthAvailability.healthServiceName()),
+        LocalSyncState(healthServiceName = healthStore.healthServiceName()),
     )
 
     val uiState: StateFlow<SyncUiState> = combine(
@@ -79,7 +80,7 @@ class SyncViewModel(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = SyncUiState(
-            healthServiceName = healthAvailability.healthServiceName(),
+            healthServiceName = healthStore.healthServiceName(),
             isSyncing = syncCoordinator.isRunning.value,
         ),
     )
@@ -87,6 +88,9 @@ class SyncViewModel(
     init {
         viewModelScope.launch {
             checkHealthReadiness()
+        }
+        viewModelScope.launch {
+            healthProvider.activeDestination.collect { checkHealthReadiness() }
         }
     }
 
@@ -101,12 +105,12 @@ class SyncViewModel(
     fun openHealthService() {
         viewModelScope.launch {
             try {
-                healthPermissions.requestPermissions()
+                healthStore.requestPermissions()
             } catch (_: Exception) {
                 // Denied / failed — open Settings or Health Connect below.
             }
-            if (!healthAvailability.hasWritePermissions()) {
-                healthAvailability.openHealthService()
+            if (!healthStore.hasWritePermissions()) {
+                healthStore.openHealthService()
             }
             checkHealthReadiness()
         }
@@ -132,11 +136,11 @@ class SyncViewModel(
     /** Health check only — never auto-starts sync on screen enter (spam-safe). */
     private suspend fun checkHealthReadiness() {
         try {
-            val available = healthAvailability.isAvailable()
-            val hint = healthAvailability.availabilityHint()
+            val available = healthStore.isAvailable()
+            val hint = healthStore.availabilityHint()
             val perms = if (available) {
                 try {
-                    healthAvailability.hasWritePermissions()
+                    healthStore.hasWritePermissions()
                 } catch (_: Exception) {
                     true
                 }
@@ -145,6 +149,7 @@ class SyncViewModel(
             }
             _local.update {
                 it.copy(
+                    healthServiceName = healthStore.healthServiceName(),
                     healthAvailable = available,
                     availabilityHint = when {
                         !available -> hint
@@ -158,6 +163,7 @@ class SyncViewModel(
         } catch (_: Exception) {
             _local.update {
                 it.copy(
+                    healthServiceName = healthStore.healthServiceName(),
                     healthAvailable = false,
                     availabilityHint = L10n.text(L10n.healthNotAvailable),
                     readinessChecked = true,
@@ -223,9 +229,9 @@ class SyncViewModel(
         } finally {
             // Refresh Health Connect / HealthKit readiness after a permission prompt.
             try {
-                val available = healthAvailability.isAvailable()
-                val hint = healthAvailability.availabilityHint()
-                val perms = healthAvailability.hasWritePermissions()
+                val available = healthStore.isAvailable()
+                val hint = healthStore.availabilityHint()
+                val perms = healthStore.hasWritePermissions()
                 _local.update {
                     it.copy(
                         healthAvailable = available,

@@ -24,6 +24,7 @@ class TokenStore(
     val autoSync: Flow<Boolean> get() = sync.autoSync
     val enabledMetrics: Flow<Set<String>> get() = sync.enabledMetrics
     val syncRangeDays: Flow<Int> get() = sync.syncRangeDays
+    val syncDestination: Flow<String> get() = sync.syncDestination
 
     suspend fun saveCredentials(c: MiCredentials) = credentials.saveCredentials(c)
 
@@ -39,6 +40,8 @@ class TokenStore(
         sync.setMetricEnabled(key, enabled)
 
     suspend fun setSyncRangeDays(days: Int) = sync.setSyncRangeDays(days)
+
+    suspend fun setSyncDestination(key: String) = sync.setSyncDestination(key)
 
     /** Full wipe (logout). */
     suspend fun clear() {
