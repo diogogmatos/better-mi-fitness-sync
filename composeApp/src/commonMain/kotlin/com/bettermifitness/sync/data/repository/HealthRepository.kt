@@ -111,9 +111,21 @@ class HealthRepository(
 
     suspend fun syncHeartRate(from: String, to: String) {
         runMetric("heartRate") {
-            val samples = MiFitnessParsers.parseHeartRateSamples(
-                fetchAllByTime("heart_rate", from, to).map { it.toRaw() },
-            )
+            // Continuous stream plus manual spot checks (APK ManualHr = single_heart_rate,
+            // same HrItem shape, merged in FitnessSummaryConnector.TABLE_HEART_RATE).
+            val byTime = fetchAllByTime("heart_rate", from, to).map { it.toRaw() }
+            val manualByTime = try {
+                fetchAllByTime("single_heart_rate", from, to).map { it.toRaw() }
+            } catch (_: Exception) {
+                emptyList()
+            }
+            val manualLatest = try {
+                api.getLatest("single_heart_rate", limit = 30).result?.dataList.orEmpty()
+                    .map { it.toRaw() }
+            } catch (_: Exception) {
+                emptyList()
+            }
+            val samples = MiFitnessParsers.parseHeartRateSamples(byTime + manualByTime + manualLatest)
             if (samples.isNotEmpty()) healthWriter.writeHeartRate(samples)
             samples.size
         }
@@ -121,7 +133,8 @@ class HealthRepository(
 
     suspend fun syncSleep(from: String, to: String) {
         runMetric("sleep") {
-            val response = api.getLatest("sleep", limit = 30)
+            // Modern segments plus legacy watch reports (APK FitnessPersistKey).
+            val response = api.getLatest("sleep,watch_night_sleep,watch_daytime_sleep", limit = 30)
             val sessions = MiFitnessParsers.parseSleepSessions(
                 response.result?.dataList.orEmpty().map { it.toRaw() },
             )
@@ -131,12 +144,12 @@ class HealthRepository(
     }
 
     /**
-     * Overnight HRV from sleep JSON (`avg_hrv`). Uses the same `sleep` cloud key —
-     * devices without HRV simply yield 0 samples (success).
+     * Overnight HRV from sleep JSON (`avg_hrv`). Queries the same merged sleep
+     * keys — devices without HRV simply yield 0 samples (success).
      */
     suspend fun syncHrv(from: String, to: String) {
         runMetric("hrv") {
-            val response = api.getLatest("sleep", limit = 30)
+            val response = api.getLatest("sleep,watch_night_sleep,watch_daytime_sleep", limit = 30)
             val samples = MiFitnessParsers.parseHrvSamples(
                 response.result?.dataList.orEmpty().map { it.toRaw() },
             )
@@ -178,9 +191,20 @@ class HealthRepository(
 
     suspend fun syncSpO2(from: String, to: String) {
         runMetric("spo2") {
-            val samples = MiFitnessParsers.parseSpO2Samples(
-                fetchAllByTime("spo2", from, to).map { it.toRaw() },
-            )
+            // Continuous stream plus legacy manual spot checks (APK ManualSpo2).
+            val byTime = fetchAllByTime("spo2", from, to).map { it.toRaw() }
+            val manualByTime = try {
+                fetchAllByTime("single_spo2", from, to).map { it.toRaw() }
+            } catch (_: Exception) {
+                emptyList()
+            }
+            val manualLatest = try {
+                api.getLatest("single_spo2", limit = 30).result?.dataList.orEmpty()
+                    .map { it.toRaw() }
+            } catch (_: Exception) {
+                emptyList()
+            }
+            val samples = MiFitnessParsers.parseSpO2Samples(byTime + manualByTime + manualLatest)
             if (samples.isNotEmpty()) healthWriter.writeSpO2(samples)
             samples.size
         }
@@ -269,13 +293,19 @@ class HealthRepository(
             val parsed = MiFitnessParsers.parseWorkouts(
                 api.getSportRecordsByTime(from, to),
             )
-            // HR samples in range — attach as series when FDS record is sparse
+            // HR samples in range — attach as series when FDS record is sparse.
+            // Include manual spot checks (single_heart_rate) like the main HR sync.
             val hrRaw = try {
                 fetchAllByTime("heart_rate", from, to).map { it.toRaw() }
             } catch (_: Exception) {
                 emptyList()
             }
-            val hrSamples = MiFitnessParsers.parseHeartRateSamples(hrRaw)
+            val hrManualRaw = try {
+                fetchAllByTime("single_heart_rate", from, to).map { it.toRaw() }
+            } catch (_: Exception) {
+                emptyList()
+            }
+            val hrSamples = MiFitnessParsers.parseHeartRateSamples(hrRaw + hrManualRaw)
             val sessions = enrichWorkouts(parsed, hrSamples)
             if (sessions.isNotEmpty()) healthWriter.writeWorkouts(sessions)
             sessions.size
@@ -318,9 +348,23 @@ class HealthRepository(
 
     suspend fun syncBloodPressure(from: String, to: String) {
         runMetric("bloodPressure") {
-            val samples = MiFitnessParsers.parseBloodPressureSamples(
-                fetchAllByTime("blood_pressure", from, to).map { it.toRaw() },
-            )
+            // Fitness key plus medical key (APK BloodPressureBiz merges both; medical rows
+            // live behind get_medical_data_by_time / get_latest_medical_data, same
+            // BloodPressureItem shape). Medical endpoints may 404 for regions/users
+            // without medical data — fall back to fitness-only.
+            val fitness = fetchAllByTime("blood_pressure", from, to).map { it.toRaw() }
+            val medicalByTime = try {
+                fetchAllMedicalByTime("mc_blood_pressure", from, to).map { it.toRaw() }
+            } catch (_: Exception) {
+                emptyList()
+            }
+            val medicalLatest = try {
+                api.getLatestMedical("mc_blood_pressure", limit = 30).result?.dataList.orEmpty()
+                    .map { it.toRaw() }
+            } catch (_: Exception) {
+                emptyList()
+            }
+            val samples = MiFitnessParsers.parseBloodPressureSamples(fitness + medicalByTime + medicalLatest)
             if (samples.isNotEmpty()) healthWriter.writeBloodPressure(samples)
             samples.size
         }
@@ -371,6 +415,25 @@ class HealthRepository(
         var pages = 0
         while (pages < maxPages) {
             val res = api.getDataByTime(key, from, to, next).result ?: break
+            all += res.dataList
+            pages++
+            if (!res.hasMore || res.nextKey.isNullOrEmpty()) break
+            next = res.nextKey
+        }
+        return all
+    }
+
+    private suspend fun fetchAllMedicalByTime(
+        key: String,
+        from: String,
+        to: String,
+        maxPages: Int = 60,
+    ): List<HeartRateEntry> {
+        val all = mutableListOf<HeartRateEntry>()
+        var next: String? = null
+        var pages = 0
+        while (pages < maxPages) {
+            val res = api.getMedicalDataByTime(key, from, to, next).result ?: break
             all += res.dataList
             pages++
             if (!res.hasMore || res.nextKey.isNullOrEmpty()) break
