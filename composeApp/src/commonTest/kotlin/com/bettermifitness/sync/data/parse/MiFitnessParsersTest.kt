@@ -101,6 +101,37 @@ class MiFitnessParsersTest {
     }
 
     @Test
+    fun parseSpO2Samples_readsLegacySingleSpo2Payload() {
+        val entries = listOf(
+            RawFitnessEntry(
+                key = "single_spo2",
+                time = 1_700_000_100L,
+                value = """{"spo2":98,"time":1700000000}""",
+            ),
+        )
+        val samples = MiFitnessParsers.parseSpO2Samples(entries)
+        assertEquals(1, samples.size)
+        assertEquals(98, samples[0].percentage)
+        assertEquals(1_700_000_000L, samples[0].timestamp)
+    }
+
+    @Test
+    fun parseSpO2Samples_fallsBackToDateTimeForReportPayload() {
+        val entries = listOf(
+            RawFitnessEntry(
+                key = "single_spo2",
+                time = 1_700_000_100L,
+                value = """{"date_time":1700000000,"time":1700000010,"spo2":97,"timezone":28}""",
+            ),
+        )
+        val samples = MiFitnessParsers.parseSpO2Samples(entries)
+        assertEquals(1, samples.size)
+        assertEquals(1_700_000_000L, samples[0].timestamp)
+        assertEquals(97, samples[0].percentage)
+        assertEquals(28, samples[0].tzIn15Min)
+    }
+
+    @Test
     fun parseHourlySteps_bucketsByHour() {
         // Floor to hour start: (t / 3600) * 3600
         val t1 = 1_700_000_100L
@@ -358,6 +389,74 @@ class MiFitnessParsersTest {
         val session = MiFitnessParsers.parseSleepSession(entry)
         assertNotNull(session)
         assertEquals(null, session.tzIn15Min)
+    }
+
+    @Test
+    fun parseSleepSessions_acceptsLegacyWatchNightSleepKey() {
+        val entry = RawFitnessEntry(
+            key = "watch_night_sleep",
+            time = 1_700_003_600L,
+            value = """
+                {
+                  "bedtime": 1700000000,
+                  "wake_up_time": 1700036000,
+                  "duration": 21600,
+                  "sleep_deep_duration": 3600,
+                  "sleep_light_duration": 14400,
+                  "sleep_rem_duration": 3600,
+                  "timezone": 32,
+                  "items": [
+                    {"start_time": 1700000000, "end_time": 1700018000, "state": 2},
+                    {"start_time": 1700018000, "end_time": 1700036000, "state": 3}
+                  ]
+                }
+            """.trimIndent(),
+        )
+        val sessions = MiFitnessParsers.parseSleepSessions(listOf(entry))
+        assertEquals(1, sessions.size)
+        assertEquals(1_700_000_000L, sessions[0].startTime)
+        assertEquals(1_700_036_000L, sessions[0].endTime)
+        assertEquals(2, sessions[0].stages.size)
+    }
+
+    @Test
+    fun parseSleepSessions_acceptsLegacyWatchDaytimeSleepKey() {
+        val entry = RawFitnessEntry(
+            key = "watch_daytime_sleep",
+            time = 1_700_003_600L,
+            value = """
+                {
+                  "bedtime": 1700000000,
+                  "wake_up_time": 1700003600,
+                  "duration": 3600,
+                  "timezone": 32,
+                  "items": [
+                    {"start_time": 1700000000, "end_time": 1700003600, "state": 3}
+                  ]
+                }
+            """.trimIndent(),
+        )
+        val sessions = MiFitnessParsers.parseSleepSessions(listOf(entry))
+        assertEquals(1, sessions.size)
+        assertEquals(1_700_000_000L, sessions[0].startTime)
+    }
+
+    @Test
+    fun parseSleepSessions_rejectsInvalidLegacySleepPayload() {
+        val entry = RawFitnessEntry(
+            key = "watch_night_sleep",
+            time = 1_700_003_600L,
+            value = """
+                {
+                  "bedtime": 0,
+                  "wake_up_time": 0,
+                  "duration": 0,
+                  "timezone": 32,
+                  "items": []
+                }
+            """.trimIndent(),
+        )
+        assertTrue(MiFitnessParsers.parseSleepSessions(listOf(entry)).isEmpty())
     }
 
     @Test

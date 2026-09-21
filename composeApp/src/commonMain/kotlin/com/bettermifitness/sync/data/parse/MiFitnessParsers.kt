@@ -54,6 +54,13 @@ object MiFitnessParsers {
     private const val HRV_MS_MIN = 5
     private const val HRV_MS_MAX = 300
 
+    /**
+     * Mi sleep persist keys from the official app (`FitnessPersistKey`):
+     * modern segments (`sleep`) plus legacy watch reports
+     * (`watch_night_sleep`, `watch_daytime_sleep`).
+     */
+    private val SLEEP_KEYS = setOf("sleep", "watch_night_sleep", "watch_daytime_sleep")
+
     fun parseHeartRateSamples(entries: List<RawFitnessEntry>): List<HeartRateSample> =
         entries.mapNotNull { entry ->
             try {
@@ -90,7 +97,9 @@ object MiFitnessParsers {
             try {
                 val obj = json.parseToJsonElement(entry.value).jsonObject
                 SpO2Sample(
-                    timestamp = obj["time"]?.jsonPrimitive?.long ?: entry.time,
+                    timestamp = obj["time"]?.jsonPrimitive?.longOrNull
+                        ?: obj["date_time"]?.jsonPrimitive?.longOrNull
+                        ?: entry.time,
                     percentage = obj["spo2"]?.jsonPrimitive?.int ?: return@mapNotNull null,
                     tzIn15Min = obj.miTimezoneOrNull(),
                 )
@@ -416,6 +425,24 @@ object MiFitnessParsers {
     private fun JsonObject.miTimezoneOrNull(): Int? =
         this["timezone"]?.jsonPrimitive?.intOrNull
 
+    /**
+     * Mirrors `DayNightSleepReport.isValidSleep`: bed/wake anchors plus a
+     * positive `duration` are required when no stage items are present.
+     */
+    private fun isValidSleepPayload(obj: JsonObject): Boolean {
+        val bedtime = obj["bedtime"]?.jsonPrimitive?.longOrNull ?: 0L
+        val wakeUp = obj["wake_up_time"]?.jsonPrimitive?.longOrNull ?: 0L
+        if (bedtime > 0 && wakeUp > 0 && wakeUp > bedtime) return true
+        val duration = obj["duration"]?.jsonPrimitive?.longOrNull ?: 0L
+        if (bedtime > 0 && wakeUp > 0 && duration > 0) return true
+        val items = try {
+            obj["items"]?.jsonArray
+        } catch (_: Exception) {
+            null
+        }
+        return !items.isNullOrEmpty()
+    }
+
     /** Rough elevation gain from min/max when Mi does not send ascent explicitly. */
     private fun elevationGain(minH: Double?, maxH: Double?, avgH: Double?): Double? {
         if (minH != null && maxH != null && maxH > minH && maxH != 0.0) {
@@ -438,12 +465,13 @@ object MiFitnessParsers {
 
     fun parseSleepSessions(entries: List<RawFitnessEntry>): List<SleepSession> =
         entries
-            .filter { it.key == "sleep" }
+            .filter { it.key in SLEEP_KEYS }
             .mapNotNull { entry -> parseSleepSession(entry) }
 
     fun parseSleepSession(entry: RawFitnessEntry): SleepSession? {
         return try {
             val obj = json.parseToJsonElement(entry.value).jsonObject
+            if (!isValidSleepPayload(obj)) return null
             val items = obj["items"]?.jsonArray
             val rawStages = items?.map { item ->
                 val stageObj = item.jsonObject

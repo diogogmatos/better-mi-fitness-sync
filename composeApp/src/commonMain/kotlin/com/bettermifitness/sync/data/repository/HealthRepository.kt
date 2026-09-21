@@ -121,7 +121,8 @@ class HealthRepository(
 
     suspend fun syncSleep(from: String, to: String) {
         runMetric("sleep") {
-            val response = api.getLatest("sleep", limit = 30)
+            // Modern segments plus legacy watch reports (APK FitnessPersistKey).
+            val response = api.getLatest("sleep,watch_night_sleep,watch_daytime_sleep", limit = 30)
             val sessions = MiFitnessParsers.parseSleepSessions(
                 response.result?.dataList.orEmpty().map { it.toRaw() },
             )
@@ -131,12 +132,12 @@ class HealthRepository(
     }
 
     /**
-     * Overnight HRV from sleep JSON (`avg_hrv`). Uses the same `sleep` cloud key —
-     * devices without HRV simply yield 0 samples (success).
+     * Overnight HRV from sleep JSON (`avg_hrv`). Queries the same merged sleep
+     * keys — devices without HRV simply yield 0 samples (success).
      */
     suspend fun syncHrv(from: String, to: String) {
         runMetric("hrv") {
-            val response = api.getLatest("sleep", limit = 30)
+            val response = api.getLatest("sleep,watch_night_sleep,watch_daytime_sleep", limit = 30)
             val samples = MiFitnessParsers.parseHrvSamples(
                 response.result?.dataList.orEmpty().map { it.toRaw() },
             )
@@ -178,9 +179,20 @@ class HealthRepository(
 
     suspend fun syncSpO2(from: String, to: String) {
         runMetric("spo2") {
-            val samples = MiFitnessParsers.parseSpO2Samples(
-                fetchAllByTime("spo2", from, to).map { it.toRaw() },
-            )
+            // Continuous stream plus legacy manual spot checks (APK ManualSpo2).
+            val byTime = fetchAllByTime("spo2", from, to).map { it.toRaw() }
+            val manualByTime = try {
+                fetchAllByTime("single_spo2", from, to).map { it.toRaw() }
+            } catch (_: Exception) {
+                emptyList()
+            }
+            val manualLatest = try {
+                api.getLatest("single_spo2", limit = 30).result?.dataList.orEmpty()
+                    .map { it.toRaw() }
+            } catch (_: Exception) {
+                emptyList()
+            }
+            val samples = MiFitnessParsers.parseSpO2Samples(byTime + manualByTime + manualLatest)
             if (samples.isNotEmpty()) healthWriter.writeSpO2(samples)
             samples.size
         }
